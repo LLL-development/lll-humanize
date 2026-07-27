@@ -1,0 +1,24 @@
+{
+  "name": "lll-humanize",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LLL-development/lll-humanize.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/LLL-development/lll-humanize/issues"
+  },
+  "homepage": "https://github.com/LLL-development/lll-humanize#readme",
+  "devDependencies": {
+    "wrangler": "^4.114.0"
+  }
+}
