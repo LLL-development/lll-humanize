@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>LLL Humanize — plagiarism, AI signals, humanizer</title>
+<meta name="description" content="A teaching tool: see how plagiarism detection and AI-writing detection actually work — and where they fail." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="site.css" />
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <a class="logo-link" href="https://live-laugh-love.world" aria-label="Live Laugh Love">
+        <img src="logo.svg" alt="Live Laugh Love" class="logo" width="115" height="51" />
+      </a>
+      <div class="brand-text">
+        <h1>Humanize</h1>
+        <span class="tagline" data-i18n="tagline"></span>
+      </div>
+    </div>
+    <div class="lang">
+      <select id="langSel" aria-label="言語 / Language">
+        <option value="ja">日本語</option>
+        <option value="en">English</option>
+        <option value="zh-CN">简体中文</option>
+      </select>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Tools">
+    <button role="tab" id="tab-plag" aria-controls="panel-plag" aria-selected="true" data-i18n="tabPlagiarism"></button>
+    <button role="tab" id="tab-det" aria-controls="panel-det" aria-selected="false" data-i18n="tabDetector"></button>
+    <button role="tab" id="tab-hum" aria-controls="panel-hum" aria-selected="false" data-i18n="tabHumanize"></button>
+  </nav>
+
+  <!-- ============ PLAGIARISM ============ -->
+  <section role="tabpanel" id="panel-plag" aria-labelledby="tab-plag">
+    <h2 data-i18n="plagTitle"></h2>
+    <p class="hint" data-i18n="plagHint"></p>
+
+    <div class="panes">
+      <div class="pane">
+        <label for="srcText" data-i18n="sourceLabel"></label>
+        <textarea id="srcText" spellcheck="false"></textarea>
+        <div class="count" id="srcCount"></div>
+      </div>
+      <div class="pane">
+        <label for="susText" data-i18n="suspectLabel"></label>
+        <textarea id="susText" spellcheck="false"></textarea>
+        <div class="count" id="susCount"></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="compareBtn" data-i18n="compareBtn"></button>
+      <span class="error hidden" id="plagError"></span>
+    </div>
+
+    <div class="result hidden" id="plagResult">
+      <div class="verdict-row">
+        <span class="stamp" id="plagStamp"></span>
+        <div class="scores">
+          <div class="score"><span class="num" id="scoreJaccard"></span><span class="lbl" data-i18n="similarity"></span></div>
+          <div class="score"><span class="num" id="scoreCovA"></span><span class="lbl" data-i18n="overlapA"></span></div>
+          <div class="score"><span class="num" id="scoreCovB"></span><span class="lbl" data-i18n="overlapB"></span></div>
+        </div>
+      </div>
+      <div class="panes">
+        <div class="pane">
+          <label data-i18n="sourceLabel"></label>
+          <div class="doc" id="docA"></div>
+        </div>
+        <div class="pane">
+          <label data-i18n="suspectLabel"></label>
+          <div class="doc" id="docB"></div>
+        </div>
+      </div>
+      <div class="meta-note" id="plagMeta"></div>
+    </div>
+  </section>
+
+  <!-- ============ DETECTOR ============ -->
+  <section role="tabpanel" id="panel-det" aria-labelledby="tab-det" class="hidden">
+    <h2 data-i18n="detTitle"></h2>
+    <p class="hint" data-i18n="detHint"></p>
+
+    <div class="pane">
+      <textarea id="detText" spellcheck="false"></textarea>
+      <div class="count" id="detCount"></div>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="analyzeBtn" data-i18n="analyzeBtn"></button>
+      <button class="ghost" id="sampleHumanBtn" data-i18n="sampleHuman"></button>
+      <button class="ghost" id="sampleAIBtn" data-i18n="sampleAI"></button>
+      <span class="error hidden" id="detError"></span>
+    </div>
+
+    <div class="result hidden" id="detResult">
+      <div class="composite-row">
+        <span class="stamp" id="detStamp"></span>
+        <div class="score"><span class="num" id="detComposite"></span><span class="lbl" data-i18n="composite"></span></div>
+        <span class="warn hidden" id="detReliability" data-i18n="reliabilityLow"></span>
+      </div>
+
+      <div class="signals" id="signalList"></div>
+
+      <div class="rhythm">
+        <h3 data-i18n="rhythm"></h3>
+        <div class="rhythm-strip" id="rhythmStrip" aria-hidden="true"></div>
+        <div class="caption" data-i18n="rhythmCaption"></div>
+      </div>
+
+      <div class="disclaimer" data-i18n="detDisclaimer"></div>
+    </div>
+  </section>
+
+  <!-- ============ HUMANIZE ============ -->
+  <section role="tabpanel" id="panel-hum" aria-labelledby="tab-hum" class="hidden">
+    <h2 data-i18n="humTitle"></h2>
+    <p class="hint" data-i18n="humHint"></p>
+
+    <div class="pane">
+      <textarea id="humText" spellcheck="false" maxlength="5000"></textarea>
+      <div class="count" id="humCount"></div>
+    </div>
+
+    <div class="actions">
+      <div class="strength" role="group" aria-label="Rewrite strength" id="strengthGroup">
+        <button data-strength="light" aria-pressed="false" data-i18n="strengthLight"></button>
+        <button data-strength="medium" aria-pressed="true" data-i18n="strengthMedium"></button>
+        <button data-strength="strong" aria-pressed="false" data-i18n="strengthStrong"></button>
+      </div>
+      <button class="primary" id="humanizeBtn" data-i18n="humanizeBtn"></button>
+      <span class="error hidden" id="humError"></span>
+    </div>
+
+    <div class="result hidden" id="humResult">
+      <div class="compare-out">
+        <div>
+          <h3 data-i18n="humBefore"></h3>
+          <div class="doc" id="humBeforeDoc"></div>
+        </div>
+        <div>
+          <h3 data-i18n="humAfter"></h3>
+          <div class="doc" id="humAfterDoc"></div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="ghost" id="loopBtn" data-i18n="humLoop"></button>
+      </div>
+    </div>
+
+    <p class="ethics" data-i18n="humEthics"></p>
+  </section>
+
+  <footer data-i18n="footer"></footer>
+</div>
+
+<script src="strings.js"></script>
+<script src="plagiarism.js"></script>
+<script src="detector.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
