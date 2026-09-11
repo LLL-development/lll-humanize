@@ -19,6 +19,6 @@
   },
   "homepage": "https://github.com/LLL-development/lll-humanize#readme",
   "devDependencies": {
-    "wrangler": "^4.114.0"
+    "wrangler": "^4.131.0"
   }
 }
