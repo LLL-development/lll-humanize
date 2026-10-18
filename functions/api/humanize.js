@@ -27,8 +27,13 @@ export async function onRequestPost({ request, env }) {
     return new Response(JSON.stringify({ error: "Invalid JSON body." }), { status: 400, headers });
   }
 
-  const text = (body.text || "").trim();
-  const strength = STYLE[body.strength] ? body.strength : "medium";
+  if (!body || typeof body !== "object" || Array.isArray(body) || typeof body.text !== "string") {
+    return new Response(JSON.stringify({ error: "Text must be a string." }), { status: 400, headers });
+  }
+
+  const text = body.text.trim();
+  const strength = typeof body.strength === "string" && Object.hasOwn(STYLE, body.strength)
+    ? body.strength : "medium";
 
   if (!text) {
     return new Response(JSON.stringify({ error: "Text is required." }), { status: 400, headers });
@@ -37,36 +42,42 @@ export async function onRequestPost({ request, env }) {
     return new Response(JSON.stringify({ error: `Text too long (max ${MAX_CHARS} characters).` }), { status: 400, headers });
   }
 
-  const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": env.ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2048,
-      system:
-        "You rewrite text to sound naturally human-written. " +
-        STYLE[strength] +
-        " Respond with ONLY the rewritten text, no preamble, no quotes, no markdown. Reply in the same language as the input.",
-      messages: [{ role: "user", content: text }],
-    }),
-  });
+  try {
+    const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 2048,
+        system:
+          "You rewrite text to sound naturally human-written. " +
+          STYLE[strength] +
+          " Respond with ONLY the rewritten text, no preamble, no quotes, no markdown. Reply in the same language as the input.",
+        messages: [{ role: "user", content: text }],
+      }),
+    });
 
-  if (!apiRes.ok) {
-    const detail = await apiRes.text().catch(() => "");
-    console.error("Anthropic API error", apiRes.status, detail.slice(0, 300));
+    if (!apiRes.ok) {
+      const detail = await apiRes.text().catch(() => "");
+      console.error("Anthropic API error", apiRes.status, detail.slice(0, 300));
+      return new Response(JSON.stringify({ error: "Rewrite service unavailable. Try again shortly." }), { status: 502, headers });
+    }
+
+    const data = await apiRes.json();
+    if (!Array.isArray(data.content)) throw new Error("Invalid rewrite response");
+    const rewritten = data.content
+      .filter((b) => b && b.type === "text" && typeof b.text === "string")
+      .map((b) => b.text)
+      .join("\n")
+      .trim();
+
+    if (!rewritten) throw new Error("Empty rewrite response");
+    return new Response(JSON.stringify({ rewritten }), { headers });
+  } catch {
     return new Response(JSON.stringify({ error: "Rewrite service unavailable. Try again shortly." }), { status: 502, headers });
   }
-
-  const data = await apiRes.json();
-  const rewritten = (data.content || [])
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n")
-    .trim();
-
-  return new Response(JSON.stringify({ rewritten }), { headers });
 }

@@ -30,3 +30,8 @@ npx wrangler pages secret put ANTHROPIC_API_KEY --project-name lll-humanize
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/humanize` | POST | Body: `{ text, strength: "light" \| "medium" \| "strong" }`. Returns `{ rewritten }` |
+## Tests
+
+Run `npm test` for the client-side plagiarism/detector checks and local API
+validation/error tests. The API tests replace the network transport; they do not
+call Anthropic or verify live rewrite quality.
