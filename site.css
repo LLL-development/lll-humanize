@@ -152,6 +152,8 @@ button.ghost:hover { border-color: var(--blue); }
   background: #fdf6e7; border-radius: 0 8px 8px 0; font-size: 13.5px; max-width: 68ch;
 }
 .warn { color: var(--stamp-amber); font-size: 13px; font-weight: 600; }
+.script-tag { color: var(--ink-soft); font-size: 13px; }
+.script-tag b { color: inherit; font-weight: 600; }
 
 /* sentence rhythm strip */
 .rhythm { margin-top: 22px; max-width: 640px; }
