@@ -32,9 +32,169 @@
     "in summary", "navigate the complexities", "ever-evolving", "landscape of",
   ];
 
+  const clamp01 = (x) => Math.min(Math.max(x, 0), 1);
+
+  /** Burstiness on a list of sentence lengths: low variation → machine-like. */
+  function lengthUniformity(lens) {
+    const cv = mean(lens) > 0 ? stdev(lens) / mean(lens) : 0;
+    return 1 - Math.min(cv / 0.65, 1);
+  }
+
+  /** Occurrences of any phrase in `list`, normalised per ~4 sentences. */
+  function phraseDensity(text, list, sentenceCount) {
+    let hits = 0;
+    for (const p of list) {
+      let idx = 0;
+      while ((idx = text.indexOf(p, idx)) !== -1) { hits++; idx += p.length; }
+    }
+    return { hits, value: Math.min(hits / Math.max(sentenceCount / 4, 1), 1) };
+  }
+
+  const countMatches = (text, re) => (text.match(re) || []).length;
+
+  // ---------- script detection ----------
+  const RE_LATIN = /\p{Script=Latin}/gu;
+  const RE_KANA = /[\p{Script=Hiragana}\p{Script=Katakana}]/gu;
+  const RE_HAN = /\p{Script=Han}/gu;
+
+  /** Main script of the text: "latin" | "japanese" | "chinese".
+   *  Japanese and Chinese both use Han; kana is what tells them apart. */
+  function detectScript(text) {
+    const latin = countMatches(text, RE_LATIN);
+    const kana = countMatches(text, RE_KANA);
+    const han = countMatches(text, RE_HAN);
+    const cjk = kana + han;
+    // Latin letters ≈ 5 per word; one CJK char carries roughly a word's worth.
+    if (cjk === 0 || cjk * 3 < latin) return "latin";
+    return kana / cjk >= 0.1 ? "japanese" : "chinese";
+  }
+
+  /** CJK sentences: end at 。！？!? (plus any closing quote), no space required. */
+  function splitSentencesCJK(text) {
+    return (text.match(/[^。！？!?\n]+(?:[。！？!?]+[」』）)"”]*)?/gu) || [])
+      .map((s) => s.trim())
+      .filter((s) => charLen(s) > 0);
+  }
+
+  /** Length in characters, ignoring whitespace and punctuation. */
+  const charLen = (s) => s.replace(/[\s\p{P}\p{S}]/gu, "").length;
+
+  // ---------- Japanese ----------
+  const JA_CONNECTIVES = ["しかし", "また", "さらに", "そのため", "このように", "一方で", "結論として"];
+  const JA_DESUMASU = /(?:です|ます|でした|ました|ません|ませんでした|でしょう|ましょう)$/u;
+  const JA_DEARU = /(?:である|であった|であろう|ではない|だ|だった|だろう)$/u;
+
+  function analyzeJapanese(text) {
+    const sents = splitSentencesCJK(text);
+    const lens = sents.map(charLen);
+    const n = sents.length;
+
+    // 1. Ending uniformity — every sentence closing in the same formal register
+    let desumasu = 0, dearu = 0;
+    for (const s of sents) {
+      const end = s.replace(/[。！？!?」』）)"”\s]+$/u, "");
+      if (JA_DESUMASU.test(end)) desumasu++;
+      else if (JA_DEARU.test(end)) dearu++;
+    }
+    const formalShare = n ? Math.max(desumasu, dearu) / n : 0;
+    const endingUniformity = clamp01((formalShare - 0.4) / 0.5);
+
+    // 2. Kanji ratio — formal/AI prose leans on Sino-Japanese vocabulary
+    const kanji = countMatches(text, RE_HAN);
+    const kana = countMatches(text, RE_KANA);
+    const kanjiRatio = kanji + kana ? kanji / (kanji + kana) : 0;
+    const kanjiSignal = clamp01((kanjiRatio - 0.25) / 0.25);
+
+    // 3. 、 per sentence — long, evenly clause-chained sentences
+    const commas = countMatches(text, /[、，]/gu);
+    const commaRate = n ? commas / n : 0;
+    const commaSignal = clamp01((commaRate - 0.5) / 1.5);
+
+    // 4. Connectives — しかし／また／さらに… at a steady drip
+    const conn = phraseDensity(text, JA_CONNECTIVES, n);
+
+    // 5. Sentence length variance in characters
+    const uniformity = lengthUniformity(lens);
+
+    const signals = [
+      { id: "endingUniformity", value: endingUniformity, weight: 0.25 },
+      { id: "kanjiRatio", value: kanjiSignal, weight: 0.15 },
+      { id: "commaDensity", value: commaSignal, weight: 0.15 },
+      { id: "connectives", value: conn.value, weight: 0.2 },
+      { id: "uniformity", value: uniformity, weight: 0.25 },
+    ];
+    return cjkResult("japanese", text, sents, lens, signals, {
+      desumasuEndings: desumasu, dearuEndings: dearu, kanjiRatio,
+      commasPerSentence: commaRate, connectives: conn.hits,
+    });
+  }
+
+  // ---------- Chinese ----------
+  const ZH_CONNECTIVES = ["此外", "而且", "因此", "总之", "值得注意的是", "综上所述"];
+
+  function analyzeChinese(text) {
+    const sents = splitSentencesCJK(text);
+    const lens = sents.map(charLen);
+    const n = sents.length;
+
+    // 1. Connectives
+    const conn = phraseDensity(text, ZH_CONNECTIVES, n);
+
+    // 2. 的 per sentence — stacked nominal modifiers
+    const de = countMatches(text, /的/gu);
+    const deRate = n ? de / n : 0;
+    const deSignal = clamp01((deRate - 0.5) / 1.5);
+
+    // 3. ，per sentence
+    const commas = countMatches(text, /[，,]/gu);
+    const commaRate = n ? commas / n : 0;
+    const commaSignal = clamp01((commaRate - 0.5) / 1.5);
+
+    // 4. Sentence length variance in characters
+    const uniformity = lengthUniformity(lens);
+
+    const signals = [
+      { id: "connectives", value: conn.value, weight: 0.3 },
+      { id: "deDensity", value: deSignal, weight: 0.2 },
+      { id: "commaDensity", value: commaSignal, weight: 0.2 },
+      { id: "uniformity", value: uniformity, weight: 0.3 },
+    ];
+    return cjkResult("chinese", text, sents, lens, signals, {
+      dePerSentence: deRate, commasPerSentence: commaRate, connectives: conn.hits,
+    });
+  }
+
+  function cjkResult(script, text, sents, lens, signals, extra) {
+    const chars = charLen(text);
+    return {
+      script,
+      signals,
+      composite: signals.reduce((s, x) => s + x.value * x.weight, 0),
+      // ~400 CJK characters carry about as much as ~200 English words
+      reliability: Math.min(chars / 400, 1) * Math.min(sents.length / 8, 1),
+      stats: {
+        sentences: sents.length,
+        characters: chars,
+        meanSentenceLen: mean(lens),
+        sentenceLenStdev: stdev(lens),
+        sentenceLengths: lens,
+        lengthUnit: "characters",
+        ...extra,
+      },
+    };
+  }
+
   /** Analyze text. Every signal is 0..1 where higher = more machine-like.
-   *  `reliability` reflects how much text we actually had to work with. */
+   *  `reliability` reflects how much text we actually had to work with.
+   *  `script` says which signal set was used. */
   function analyze(text) {
+    const script = detectScript(text);
+    if (script === "japanese") return analyzeJapanese(text);
+    if (script === "chinese") return analyzeChinese(text);
+    return analyzeLatin(text);
+  }
+
+  function analyzeLatin(text) {
     const sents = splitSentences(text);
     const ws = words(text);
     const sentLens = sents.map((s) => words(s).length).filter((n) => n > 0);
@@ -81,6 +241,7 @@
     const reliability = Math.min(ws.length / 200, 1) * Math.min(sents.length / 8, 1);
 
     return {
+      script: "latin",
       signals,
       composite,
       reliability,
@@ -93,9 +254,10 @@
         contractions,
         stockPhrases: hedges,
         sentenceLengths: sentLens,
+        lengthUnit: "words",
       },
     };
   }
 
-  return { analyze, splitSentences, words };
+  return { analyze, detectScript, splitSentences, splitSentencesCJK, words };
 });

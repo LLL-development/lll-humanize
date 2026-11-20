@@ -98,8 +98,14 @@
       ai: "It is important to note that machine learning plays a crucial role in modern technology. Furthermore, machine learning enables systems to improve automatically through experience. Moreover, machine learning provides valuable insights across various industries. Additionally, machine learning supports decision making in complex environments. It is worth noting that machine learning continues to evolve rapidly. In conclusion, machine learning represents a transformative force in today's world.",
     },
   };
-  SAMPLES.ja = SAMPLES.en;
-  SAMPLES["zh-CN"] = SAMPLES.en;
+  SAMPLES.ja = {
+    human: "昨日さ、駅前の新しいラーメン屋行ってみた。めっちゃ並んでたけど、まあいっか。で、食べたらびっくり！スープが濃すぎて全部は無理だったわ。友達は「うまい」って言ってたけどね。値段も千二百円って高くない？たぶんもう行かないかな。でも餃子はよかったよ。次は別の店にしよう。",
+    ai: "人工知能は現代社会において重要な役割を果たしています。しかし、その活用には様々な課題が存在します。また、倫理的な観点からの検討も必要不可欠です。さらに、技術の急速な発展に伴い、新たな規制の整備が求められています。そのため、企業や政府は緊密に連携して対策を講じる必要があります。一方で、人工知能は医療や教育の分野において大きな可能性を秘めています。このように、人工知能の影響は多岐にわたります。結論として、人工知能との適切な共存が今後の重要な課題となります。",
+  };
+  SAMPLES["zh-CN"] = {
+    human: "昨天去了趟超市。人超多！排队排了快半小时，烦死了。我妈非要买那个打折的西瓜，结果回家一切，全是白的。哈哈。我爸说下次他去挑。算了吧，他上次买的更离谱。晚上随便煮了个面，吃完就睡了。",
+    ai: "人工智能在现代社会中发挥着重要的作用。此外，人工智能的发展也带来了许多新的挑战，例如数据隐私和算法偏见等问题。而且，各国政府正在积极制定相关的政策和法规。因此，企业需要在技术创新与社会责任之间找到合理的平衡。值得注意的是，人工智能在医疗和教育领域的应用前景十分广阔。综上所述，人工智能是推动社会进步的重要力量。总之，我们应当以开放和审慎的态度迎接人工智能时代的到来。",
+  };
 
   $("sampleHumanBtn").addEventListener("click", () => { $("detText").value = (SAMPLES[lang] || SAMPLES.en).human; $("detText").dispatchEvent(new Event("input")); });
   $("sampleAIBtn").addEventListener("click", () => { $("detText").value = (SAMPLES[lang] || SAMPLES.en).ai; $("detText").dispatchEvent(new Event("input")); });
@@ -112,14 +118,26 @@
     else if (c < 0.6) { stamp.className = "stamp low"; stamp.textContent = pct(c); }
     else { stamp.className = "stamp mid"; stamp.textContent = pct(c); }
     $("detComposite").textContent = pct(c);
-    $("detReliability").classList.toggle("hidden", r.reliability >= 0.5);
+    const cjk = r.script !== "latin";
+    const relEl = $("detReliability");
+    relEl.dataset.i18n = cjk ? "reliabilityLowCJK" : "reliabilityLow";
+    relEl.textContent = t(lang, relEl.dataset.i18n);
+    relEl.classList.toggle("hidden", r.reliability >= 0.5);
+    const scriptEl = $("detScriptName");
+    scriptEl.dataset.i18n = { latin: "scriptLatin", japanese: "scriptJapanese", chinese: "scriptChinese" }[r.script];
+    scriptEl.textContent = t(lang, scriptEl.dataset.i18n);
+    const capEl = $("rhythmCaption");
+    capEl.dataset.i18n = cjk ? "rhythmCaptionCJK" : "rhythmCaption";
+    capEl.textContent = t(lang, capEl.dataset.i18n);
 
     const list = $("signalList");
     list.innerHTML = "";
     const NAME = {
       uniformity: "sigUniformity", lowVariety: "sigLowVariety",
       noContractions: "sigNoContractions", hedgeDensity: "sigHedgeDensity",
-      repeatedOpeners: "sigRepeatedOpeners",
+      repeatedOpeners: "sigRepeatedOpeners", endingUniformity: "sigEndingUniformity",
+      kanjiRatio: "sigKanjiRatio", commaDensity: "sigCommaDensity",
+      connectives: "sigConnectives", deDensity: "sigDeDensity",
     };
     for (const s of r.signals) {
       const row = document.createElement("div");
